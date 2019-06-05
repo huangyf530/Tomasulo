@@ -8,7 +8,11 @@ public class main {
     {
         Vector<String> instruction = readInstruction(path);
         Tomasulo tomasulo = new Tomasulo();
-        tomasulo.updateStatus(instruction.get(0));
+        int clock = 1;
+        while(!tomasulo.isEnd() || clock == 1){
+            tomasulo.updateStatus(instruction);
+            clock++;
+        }
     }
 
     private static Vector<String> readInstruction(String path){
