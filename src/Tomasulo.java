@@ -15,11 +15,11 @@ public class Tomasulo {
     private static int ADD = 3;
     private static int MULT = 2;
     private static int LOAD = 2;
-    private static int REGISTER = 20;
+    static int REGISTER = 20;
     // define reservation stations number
-    private static int ADDRS = 6;
-    private static int MULTRS = 3;
-    private static int LOADBF = 3;
+    static int ADDRS = 6;
+    static int MULTRS = 3;
+    static int LOADBF = 3;
     // define different type device
     final static int ADDTYPE = 1;
     final static int MULTTYPE = 2;
@@ -83,10 +83,10 @@ public class Tomasulo {
         to_update = new Vector<>();
     }
 
-    private boolean HandleLD(int write_to, int num){
+    private ReservationStation HandleLD(int write_to, int num){
         int index = RSBusy(loadBuffers);
         if(index < 0){
-            return false;
+            return null;
         }
         execInstr++;
         ReservationStation current = loadBuffers.get(index);
@@ -106,13 +106,13 @@ public class Tomasulo {
             loadDevices.get(device).occupy(current);
             loadDevices.get(device).update(this);
         }
-        return true;
+        return current;
     }
 
-    private boolean Handle(int qj, int qk, int write_to, Vector<ReservationStation> test, int type, Queue<ReservationStation> queue, Vector<Device> devices){
+    private ReservationStation Handle(int qj, int qk, int write_to, Vector<ReservationStation> test, int type, Queue<ReservationStation> queue, Vector<Device> devices){
         int index = RSBusy(test);
         if(index < 0){
-            return false;
+            return null;
         }
         execInstr++;
         ReservationStation current = test.get(index);
@@ -143,17 +143,16 @@ public class Tomasulo {
             queue.offer(current);
         }
         else{
-            // System.out.println(device);
             devices.get(device).occupy(current);
             devices.get(device).update(this);
         }
-        return true;
+        return current;
     }
 
-    private boolean HandleJump(int vj, int qk, int offset){
+    private ReservationStation HandleJump(int vj, int qk, int offset){
         int index = RSBusy(addStations);
         if(index < 0){
-            return false;
+            return null;
         }
         execInstr++;
         ReservationStation current = addStations.get(index);
@@ -178,7 +177,7 @@ public class Tomasulo {
             addDevices.get(device).occupy(current);
             addDevices.get(device).update(this);
         }
-        return true;
+        return current;
     }
 
     private int RSBusy(Vector<ReservationStation> rs){
@@ -202,7 +201,7 @@ public class Tomasulo {
         return k;
     }
 
-    boolean updateStatus(Vector<String> instructions){
+    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata, Vector<Vector<String>> regdata, Vector<Vector<String>> rsdata, Vector<Vector<String>> lbdata){
         /*
          * return true if the instruction issue, else return false
          */
@@ -211,6 +210,7 @@ public class Tomasulo {
         // (1) write through
         for(ReservationStation rs : to_update){
             System.out.print(rs.name + " ");
+            rs.WriteResult(clock, statusdata);
             rs.wakeup(this);
         }
         System.out.println();
@@ -226,12 +226,15 @@ public class Tomasulo {
         for(int i = 0; i < MULT; i++){
             multDevices.get(i).update(this);
         }
+        for(ReservationStation rs : to_update){
+            rs.ExecComp(clock, statusdata);
+        }
 
         // handle new instruction
         if(blockByJump || pc >= instructions.size()){
-            printRegiters();
-            printRS();
-            printLoadBuffers();
+            printRegiters(regdata);
+            printRS(rsdata);
+            printLoadBuffers(lbdata);
             return false;
         }
         String instruction = instructions.get(pc);
@@ -248,74 +251,90 @@ public class Tomasulo {
             blockByJump = true;
             write_to = 0;
         }
+        ReservationStation current;
         boolean succeed = false;
         switch (insts[0]){
             case "LD":
                 int num = (int)Long.parseLong(insts[2].substring(2), 16);
-                succeed  = HandleLD(write_to, num);
+                current = HandleLD(write_to, num);
                 break;
             case "SUB":
                 res1 = Integer.parseInt(insts[2].substring(1));
                 res2 = Integer.parseInt(insts[3].substring(1));
-                succeed  = Handle(res1,res2, write_to, addStations, SUBTYPE, addqueue, addDevices);
+                current = Handle(res1,res2, write_to, addStations, SUBTYPE, addqueue, addDevices);
                 break;
             case "ADD":
                 res1 = Integer.parseInt(insts[2].substring(1));
                 res2 = Integer.parseInt(insts[3].substring(1));
-                succeed = Handle(res1,res2, write_to, addStations, ADDTYPE, addqueue, addDevices);
+                current = Handle(res1,res2, write_to, addStations, ADDTYPE, addqueue, addDevices);
                 break;
             case "MUL":
                 res1 = Integer.parseInt(insts[2].substring(1));
                 res2 = Integer.parseInt(insts[3].substring(1));
-                succeed = Handle(res1,res2, write_to, mulStations, MULTTYPE, mulqueue, multDevices);
+                current = Handle(res1,res2, write_to, mulStations, MULTTYPE, mulqueue, multDevices);
                 break;
             case "DIV":
                 res1 = Integer.parseInt(insts[2].substring(1));
                 res2 = Integer.parseInt(insts[3].substring(1));
-                succeed = Handle(res1,res2, write_to, mulStations, DIVTYPE, mulqueue, multDevices);
+                current = Handle(res1,res2, write_to, mulStations, DIVTYPE, mulqueue, multDevices);
                 break;
             case "JUMP":
                 write_to = (int)Long.parseLong(insts[3].substring(2), 16);
                 res1 = (int)Long.parseLong(insts[1].substring(2),16);
                 res2 = Integer.parseInt(insts[2].substring(1));
-                succeed = HandleJump(res1, res2, write_to);
-                if(!succeed){
+                current = HandleJump(res1, res2, write_to);
+                if(current == null){
                     System.out.println("not succeed!");
                     blockByJump = false;
                 }
                 break;
             default:
+                current = null;
                 System.out.println(insts[0] + " is not a valid instruction");
                 break;
         }
-        printRegiters();
-        printRS();
-        printLoadBuffers();
-        if(succeed && !blockByJump){
+        printRegiters(regdata);
+        printRS(rsdata);
+        printLoadBuffers(lbdata);
+        if(current != null){
+            current.changeInstruction(instruction, pc);
+            current.Issue(clock, statusdata);
+        }
+        if(current != null && !blockByJump){
             pc++;
         }
-        return succeed;
+        return (current == null);
     }
 
-    private void printLoadBuffers(){
+    private void printLoadBuffers(Vector<Vector<String>> lbdata){
         System.out.println("Time\tName\tBusy\tContent");
-        for(ReservationStation rs : loadBuffers){
-            if(rs.just_do == 2 && rs.count_down != 0){
+        for(int i = 0; i < loadBuffers.size(); i++){
+            ReservationStation rs = loadBuffers.get(i);
+            if(rs.just_do == 2){
                 System.out.print(rs.count_down);
+                lbdata.get(i).setElementAt(Integer.toString(rs.count_down), 0);
+            }
+            else{
+                lbdata.get(i).setElementAt("", 0);
             }
             System.out.print("\t\t");
             System.out.print(rs.name + "\t");
+            lbdata.get(i).setElementAt(rs.name, 1);
             if(rs.isBusy()){
                 System.out.print("Yes\t\t" + rs.result);
+                lbdata.get(i).setElementAt("Yes", 2);
+                lbdata.get(i).setElementAt(Integer.toString(rs.result), 3);
             }
             else{
                 System.out.print("No\t\t");
+                lbdata.get(i).setElementAt("No", 2);
+                lbdata.get(i).setElementAt("", 3);
             }
             System.out.print("\n");
         }
     }
 
-    private void printRegiters(){
+    private void printRegiters(Vector<Vector<String>> regdata){
         for(int i = 0; i < registers.size(); i++){
             System.out.print("F" + i + "\t\t");
         }
@@ -323,58 +342,91 @@ public class Tomasulo {
         for(int i = 0; i < registers.size(); i++){
             if(registers.get(i).ok){
                 System.out.print(registers.get(i).content + "\t\t");
+                regdata.get(0).setElementAt(Integer.toString(registers.get(i).content), i);
             }
             else{
                 System.out.print(registers.get(i).rs.name + "\t");
+                regdata.get(0).setElementAt(registers.get(i).rs.name, i);
             }
         }
         System.out.print("\n");
     }
 
-    private void printRS(){
+    private void printRS(Vector<Vector<String>> rsdata){
         System.out.println("Time\tName\tBusy\tOp\t\tVj\t\tVk\t\tQj\t\tQk");
-        printTheRS(addStations);
-        printTheRS(mulStations);
+        int cnt = 0;
+        printTheRS(addStations, rsdata, cnt);
+        cnt += ADDRS;
+        printTheRS(mulStations, rsdata, cnt);
     }
 
-    private void printTheRS(Vector<ReservationStation> current){
-        for(ReservationStation rs : current){
+    private void printTheRS(Vector<ReservationStation> current, Vector<Vector<String>> rsdata, int cnt){
+        for(int i = 0; i < current.size(); i++){
+            ReservationStation rs = current.get(i);
+            int index = 0;
             if(rs.just_do == 2){
                 System.out.print(rs.count_down);
+                rsdata.get(i + cnt).setElementAt(Integer.toString(rs.count_down), index);
+            }
+            else{
+                rsdata.get(i + cnt).setElementAt("", index);
             }
             System.out.print("\t\t");
             System.out.print(rs.name + "\t");
+            index++;
+            rsdata.get(i + cnt).setElementAt(rs.name, index);
+            index++;
             if(rs.isBusy()){
                 System.out.print("Yes\t\t");
+                rsdata.get(i + cnt).setElementAt("Yes", index);
             }
             else{
                 System.out.println("No\t\t");
+                rsdata.get(i + cnt).setElementAt("No", index);
+                for(index = 3; index < rsdata.get(i).size(); index++){
+                    rsdata.get(i + cnt).setElementAt("", index);
+                }
                 continue;
             }
-            System.out.print(rs.Op() + "\t");
+            index++;
+            String op = rs.Op();
+            System.out.print(op + "\t");
+            rsdata.get(i + cnt).setElementAt(op, index);
+            index++;
             if(rs.sourcej == null){
                 System.out.printf("% 6d  ", rs.vj);
+                rsdata.get(i + cnt).setElementAt(Integer.toString(rs.vj), index);
             }
             else{
                 System.out.print("\t\t");
+                rsdata.get(i + cnt).setElementAt("", index);
             }
+            index++;
             if(rs.sourcek == null){
                 System.out.printf("% 6d  ", rs.vk);
+                rsdata.get(i + cnt).setElementAt(Integer.toString(rs.vk), index);
             }
             else{
                 System.out.print("\t\t");
+                rsdata.get(i + cnt).setElementAt("", index);
             }
+            index++;
             if(rs.sourcej != null){
                 System.out.print(rs.sourcej.name+"\t");
+                rsdata.get(i + cnt).setElementAt(rs.sourcej.name, index);
             }
             else {
                 System.out.print("\t\t");
+                rsdata.get(i + cnt).setElementAt("", index);
             }
+            index++;
             if(rs.sourcek != null){
                 System.out.print(rs.sourcek.name+"\t");
+                rsdata.get(i + cnt).setElementAt(rs.sourcek.name, index);
             }
             else {
                 System.out.print("\t\t");
+                rsdata.get(i + cnt).setElementAt("", index);
             }
             System.out.print("\n");
         }
@@ -382,6 +434,15 @@ public class Tomasulo {
 
     public boolean isEnd(){
         return execInstr == 0;
+    }
+
+    int getClock(){
+        return clock;
+    }
+
+    void initClock(){
+        clock = 0;
+        pc = 0;
     }
 }
 
@@ -513,6 +574,7 @@ class ReservationStation{
     ReservationStation sourcej;
     ReservationStation sourcek;
     ArrayList<ReservationStation> waitlist;
+    InstructionStatus instructionStatus;
     int just_do;   // 1 issue  2 exec   3 write through
     ReservationStation(int num, String name){
         this.num = num;
@@ -523,6 +585,48 @@ class ReservationStation{
         sourcej = null;
         sourcek = null;
         waitlist = new ArrayList<>();
+        instructionStatus = new InstructionStatus();
+    }
+
+    void changeInstruction(String inst, int kth){
+        instructionStatus.instruction = inst;
+        instructionStatus.kth = kth;
+        instructionStatus.issue = 0;
+        instructionStatus.execcomp = 0;
+        instructionStatus.write = 0;
+    }
+
+    void Issue(int clock, Vector<Vector<String>> statudata){
+        instructionStatus.Issue(clock);
+        String temp = statudata.get(instructionStatus.kth).get(1);
+        if(!temp.equals("")){
+            statudata.get(instructionStatus.kth).setElementAt(temp + ", " + clock, 1);
+        }
+        else{
+            statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 1);
+        }
+    }
+
+    void ExecComp(int clock, Vector<Vector<String>> statudata){
+        instructionStatus.Exec(clock);
+        String temp = statudata.get(instructionStatus.kth).get(2);
+        if(!temp.equals("")){
+            statudata.get(instructionStatus.kth).setElementAt(temp + ", " + clock, 2);
+        }
+        else{
+            statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 2);
+        }
+    }
+
+    void WriteResult(int clock, Vector<Vector<String>> statudata){
+        instructionStatus.Write(clock);
+        String temp = statudata.get(instructionStatus.kth).get(3);
+        if(!temp.equals("")){
+            statudata.get(instructionStatus.kth).setElementAt(temp + ", " + clock, 3);
+        }
+        else{
+            statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 3);
+        }
     }
 
     String Op(){
@@ -657,11 +761,13 @@ class InstructionStatus{
     int issue;
     int execcomp;
     int write;
-    InstructionStatus(String inst){
-        instruction = inst;
+    int kth;
+    InstructionStatus(){
+        instruction = null;
         issue = 0;
         execcomp = 0;
         write = 0;
+        kth = 0;
     }
 
     int Issue(int t){

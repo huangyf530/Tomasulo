@@ -3,16 +3,12 @@ import java.util.Vector;
 
 
 public class main {
-    private static String path = "./nel/test0.nel";
+    private static String path = "./nel/test2.nel";
     public static void main(String[] args)
     {
         Vector<String> instruction = readInstruction(path);
         Tomasulo tomasulo = new Tomasulo();
-        int clock = 1;
-        while(!tomasulo.isEnd() || clock == 1){
-            tomasulo.updateStatus(instruction);
-            clock++;
-        }
+        MainWindow mainWindow = new MainWindow("Tomasulo模拟器", tomasulo, instruction);
     }
 
     private static Vector<String> readInstruction(String path){
