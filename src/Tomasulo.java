@@ -1,3 +1,4 @@
+import javax.swing.event.DocumentEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -15,7 +16,7 @@ public class Tomasulo {
     private static int ADD = 3;
     private static int MULT = 2;
     private static int LOAD = 2;
-    static int REGISTER = 20;
+    static int REGISTER = 32;
     // define reservation stations number
     static int ADDRS = 6;
     static int MULTRS = 3;
@@ -201,7 +202,7 @@ public class Tomasulo {
         return k;
     }
 
-    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata, Vector<Vector<String>> regdata, Vector<Vector<String>> rsdata, Vector<Vector<String>> lbdata){
+    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata, Vector<Vector<Vector<String>>> regdata, Vector<Vector<String>> rsdata, Vector<Vector<String>> lbdata){
         /*
          * return true if the instruction issue, else return false
          */
@@ -334,19 +335,20 @@ public class Tomasulo {
         }
     }
 
-    private void printRegiters(Vector<Vector<String>> regdata){
+    private void printRegiters(Vector<Vector<Vector<String>>> regdata){
         for(int i = 0; i < registers.size(); i++){
             System.out.print("F" + i + "\t\t");
         }
         System.out.print("\n");
         for(int i = 0; i < registers.size(); i++){
+            Vector<Vector<String>> current = regdata.get(i / MainWindow.ONELINEREG);
             if(registers.get(i).ok){
                 System.out.print(registers.get(i).content + "\t\t");
-                regdata.get(0).setElementAt(Integer.toString(registers.get(i).content), i);
+                current.get(0).setElementAt(Integer.toString(registers.get(i).content), i % MainWindow.ONELINEREG);
             }
             else{
                 System.out.print(registers.get(i).rs.name + "\t");
-                regdata.get(0).setElementAt(registers.get(i).rs.name, i);
+                current.get(0).setElementAt(registers.get(i).rs.name, i % MainWindow.ONELINEREG);
             }
         }
         System.out.print("\n");
@@ -443,14 +445,41 @@ public class Tomasulo {
     void initClock(){
         clock = 0;
         pc = 0;
+        blockByJump = false;
+        execInstr = 0;
+        for(ReservationStation rs : addStations){
+            rs.release();
+        }
+        for(ReservationStation rs : mulStations){
+            rs.release();
+        }
+        for(ReservationStation rs : loadBuffers){
+            rs.release();
+        }
+        for(Register register : registers){
+            register.release();
+        }
+        for(Device device : addDevices){
+            device.release();
+        }
+        for(Device device : multDevices){
+            device.release();
+        }
+        for(Device device : loadDevices){
+            device.release();
+        }
+        addqueue.clear();
+        loadqueue.clear();
+        mulqueue.clear();
+        to_update.clear();
     }
 }
 
 class Device{
     int type;
     private boolean busy;
-    ReservationStation rs;
-    Queue<ReservationStation> waitQueue;
+    private ReservationStation rs;
+    private Queue<ReservationStation> waitQueue;
     Device(Queue<ReservationStation> waitQueue){
         busy = false;
         this.waitQueue = waitQueue;
@@ -574,7 +603,7 @@ class ReservationStation{
     ReservationStation sourcej;
     ReservationStation sourcek;
     ArrayList<ReservationStation> waitlist;
-    InstructionStatus instructionStatus;
+    private InstructionStatus instructionStatus;
     int just_do;   // 1 issue  2 exec   3 write through
     ReservationStation(int num, String name){
         this.num = num;
@@ -648,7 +677,7 @@ class ReservationStation{
         }
     }
 
-    private void release(){
+    void release(){
         busy = false;
         address = 0;
         just_do = 0;
@@ -657,6 +686,7 @@ class ReservationStation{
         vj = vk = 0;
         write_to = 0;
         result = 0;
+        waitlist.clear();
     }
 
      boolean isBusy(){
@@ -718,9 +748,6 @@ class ReservationStation{
      }
 
      void wakeup(Tomasulo tomasulo){
-//        if(waitlist.size() > 0){
-//            System.out.print(name + " : ");
-//        }
          Vector<Register> registers = tomasulo.registers;
         for(ReservationStation rs : waitlist){
         //            System.out.print(rs.name + " ");
@@ -751,7 +778,6 @@ class ReservationStation{
 //             System.out.print("\n");
 //         }
         release();
-        waitlist.clear();
         tomasulo.execInstr--;
      }
 }
@@ -795,6 +821,12 @@ class Register{
     int content;
     boolean ok;
     Register(){
+        content = 0;
+        rs = null;
+        ok = true;
+    }
+
+    void release(){
         content = 0;
         rs = null;
         ok = true;

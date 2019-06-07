@@ -3,15 +3,25 @@ import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
 import java.util.Vector;
 
 
 public class MainWindow extends JFrame {
+    final static int ONELINEREG = 16;
     private Tomasulo tomasulo;
     private JButton start;
     private JButton next;
     private JButton initial;
+    private JLabel clockLabel;
+    private JTextArea clockText;
+    private JButton loadInst;
     private Vector<String> instructions;
+    private JFileChooser fileChooser;
+    private JPanel contentPanel;
 
     private Vector<String> inscnames;
     private Vector<Vector<String>> insdata;
@@ -25,52 +35,67 @@ public class MainWindow extends JFrame {
     private Vector<Vector<String>> lbdata;
     private JTable lb;
 
-    private Vector<String> regnames;
-    private Vector<Vector<String>> regdata;
-    private JTable register;
-    MainWindow(String windowName, Tomasulo tom, Vector<String> ins){
+    private Vector<Vector<String>> regnames;
+    private Vector<Vector<Vector<String>>> regdata;
+    private Vector<JTable> register;
+    MainWindow(String windowName, Tomasulo tom){
         super(windowName);
         this.tomasulo = tom;
-        instructions = ins;
-        JPanel contentPanel = (JPanel)this.getContentPane();
+        instructions = new Vector<>();
+        contentPanel = (JPanel)this.getContentPane();
         JPanel buttonPanel = initButtonPanel();
         contentPanel.add(buttonPanel, BorderLayout.SOUTH);
         JPanel statusPanel = initStatusPanel();
         contentPanel.add(statusPanel, BorderLayout.CENTER);
-        for(String instruction : instructions){
-            Vector<String> temp = new Vector<>();
-            temp.add(instruction);
-            for(int i = 1; i < inscnames.size(); i++){
-                temp.add("");
-            }
-            insdata.add(temp);
-        }
+//        for(String instruction : instructions){
+//            Vector<String> temp = new Vector<>();
+//            temp.add(instruction);
+//            for(int i = 1; i < inscnames.size(); i++){
+//                temp.add("");
+//            }
+//            insdata.add(temp);
+//        }
 
         contentPanel.setOpaque(true);
 
+        fileChooser = new JFileChooser();
+        File current = new File("./");
+        fileChooser.setCurrentDirectory(current);
+        fileChooser.setFileSelectionMode(JFileChooser.FILES_ONLY);
         addListener();
 
         this.setLocationRelativeTo(null);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        this.setSize(1000, 800);
+        this.setSize(900, 700);
         setVisible(true);
     }
 
     private JPanel initButtonPanel(){
         JPanel buttonPanel = new JPanel();
         buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
+        JLabel endClock = new JLabel("End Clock:");
+        buttonPanel.add(endClock);
+        clockText = new JTextArea("0");
+        clockText.setPreferredSize(new Dimension(150, 15));
+        clockText.setMaximumSize(new Dimension(150, 15));
+        clockText.setMinimumSize(new Dimension(100, 15));
+        buttonPanel.add(clockText);
         start = new JButton("START");
         buttonPanel.add(start);
         next = new JButton("NEXT");
         buttonPanel.add(next);
         initial = new JButton("INIT");
         buttonPanel.add(initial);
+        loadInst = new JButton("LOAD");
+        buttonPanel.add(loadInst);
         return buttonPanel;
     }
 
     private JPanel initStatusPanel(){
         JPanel statusPanel = new JPanel();
         statusPanel.setLayout(new BorderLayout());
+        // init clock panel
+        JPanel clockPanel = initClockPanel();
 
         // init instruction table
         insdata = new Vector<>();
@@ -82,8 +107,13 @@ public class MainWindow extends JFrame {
         insTable = new JTable(insdata, inscnames);
         JScrollPane scrollPane = new JScrollPane(insTable);
         insTable.setBackground(Color.YELLOW);
-        scrollPane.setPreferredSize(new Dimension(1000, 300));
-        statusPanel.add(scrollPane, BorderLayout.NORTH);
+        scrollPane.setPreferredSize(new Dimension(700, 300));
+
+        JPanel topPanel = new JPanel();
+        topPanel.setLayout(new BoxLayout(topPanel, BoxLayout.LINE_AXIS));
+        topPanel.add(clockPanel);
+        topPanel.add(scrollPane);
+        statusPanel.add(topPanel, BorderLayout.NORTH);
 
         // init reservation stations table
         JPanel rsPanel = new JPanel();
@@ -130,30 +160,50 @@ public class MainWindow extends JFrame {
         statusPanel.add(rsPanel, BorderLayout.CENTER);
 
         // init register panel
+        JPanel regiterPane = new JPanel();
+        regiterPane.setLayout(new BoxLayout(regiterPane, BoxLayout.PAGE_AXIS));
         regdata = new Vector<>();
         regnames = new Vector<>();
-        regdata.add(new Vector<>());
-        for(int i = 0; i < tomasulo.REGISTER; i++){
-            regnames.add("F" + i);
-            regdata.get(0).add("");
+        register = new Vector<>();
+        int regtablenum = (int)Math.ceil((double)(tomasulo.REGISTER) / ONELINEREG);
+        for(int i = 0; i < regtablenum; i++){
+            Vector<String> oneline = new Vector<>();
+            regdata.add(new Vector<>());
+            Vector<Vector<String>> thisline = regdata.get(i);
+            thisline.add(new Vector<>());
+            for(int j = 0; j < ONELINEREG; j++) {
+                if((i * ONELINEREG + j) >= tomasulo.REGISTER){
+                    break;
+                }
+                oneline.add("F" + (i * ONELINEREG + j));
+                thisline.get(0).add("0");
+            }
+            regnames.add(oneline);
+            register.add(new JTable(regdata.get(i), regnames.get(i)));
+            JScrollPane REGscrollPane = new JScrollPane(register.get(i));
+            REGscrollPane.setPreferredSize(new Dimension(700, 40));
+            regiterPane.add(REGscrollPane);
         }
-        register = new JTable(regdata, regnames);
-        JScrollPane REGscrollPane = new JScrollPane(register);
-        REGscrollPane.setPreferredSize(new Dimension(1000, 60));
-        statusPanel.add(REGscrollPane, BorderLayout.SOUTH);
+        statusPanel.add(regiterPane, BorderLayout.SOUTH);
         return statusPanel;
     }
 
-    void addListener(){
+    private JPanel initClockPanel(){
+        JPanel clockPanel = new JPanel();
+        clockLabel = new JLabel("Clock: 0");
+        clockPanel.setLayout(new BoxLayout(clockPanel, BoxLayout.PAGE_AXIS));
+        clockPanel.add(clockLabel);
+        clockPanel.setPreferredSize(new Dimension(300, 300));
+        return clockPanel;
+    }
+
+    private void addListener(){
         next.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if(e.getSource() == next){
                     tomasulo.updateStatus(instructions,insdata, regdata, rsdata, lbdata);
-                    insTable.updateUI();
-                    rs.updateUI();
-                    lb.updateUI();
-                    register.updateUI();
+                    updateTable();
                 }
             }
         });
@@ -162,11 +212,9 @@ public class MainWindow extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if(e.getSource() == start){
-                    startTomasulo(0);
-                    insTable.updateUI();
-                    rs.updateUI();
-                    lb.updateUI();
-                    register.updateUI();
+                    int endClock = Integer.parseInt(clockText.getText());
+                    startTomasulo(endClock);
+                    updateTable();
                 }
             }
         });
@@ -176,10 +224,22 @@ public class MainWindow extends JFrame {
             public void actionPerformed(ActionEvent e) {
                 if(e.getSource() == initial){
                     initial();
-                    insTable.updateUI();
-                    rs.updateUI();
-                    lb.updateUI();
-                    register.updateUI();
+                    updateTable();
+                }
+            }
+        });
+
+        loadInst.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if(e.getSource() == loadInst){
+                    int result = fileChooser.showOpenDialog(contentPanel);
+                    if(result == JFileChooser.APPROVE_OPTION){
+                        File file = fileChooser.getSelectedFile();
+                        readInstruction(file);
+                        setInstructions();
+                        insTable.updateUI();
+                    }
                 }
             }
         });
@@ -189,10 +249,10 @@ public class MainWindow extends JFrame {
         int clock = 1;
         while(!tomasulo.isEnd() || clock == 1){
             tomasulo.updateStatus(instructions, insdata, regdata, rsdata, lbdata);
-            clock++;
             if(clock == endClock){
                 break;
             }
+            clock++;
         }
     }
 
@@ -203,9 +263,9 @@ public class MainWindow extends JFrame {
                 temp.setElementAt("", i);
             }
         }
-        for(Vector<String> temp : regdata){
-            for(int i = 0; i < regnames.size(); i++){
-                temp.setElementAt("0", i);
+        for(int j = 0; j < regnames.size(); j++){
+            for(int i = 0; i < regnames.get(j).size(); i++){
+                regdata.get(j).get(0).setElementAt("0", i);
             }
         }
         for(Vector<String> temp : rsdata){
@@ -217,6 +277,49 @@ public class MainWindow extends JFrame {
             for(int i = 0; i < lbcnames.size(); i++){
                 temp.setElementAt("", i);
             }
+        }
+    }
+
+    private void readInstruction(File f){
+        BufferedReader reader = null;
+        instructions.clear();
+        try{
+            reader = new BufferedReader(new FileReader(f));
+            String tempString = null;
+            int line = 1;
+            // 一次读入一行，直到读入null为文件结束
+            while ((tempString = reader.readLine()) != null) {
+                // 显示行号
+                instructions.add(tempString);
+                line++;
+            }
+            reader.close();
+        }
+        catch (IOException e){
+            e.printStackTrace();
+            System.out.println(f.getAbsolutePath() + " not find!");
+        }
+    }
+
+    private void setInstructions(){
+        insdata.clear();
+        for(String instruction: instructions){
+            Vector<String> temp = new Vector<>();
+            temp.add(instruction);
+            for(int j = 1; j < inscnames.size(); j++){
+                temp.add("");
+            }
+            insdata.add(temp);
+        }
+    }
+
+    private void updateTable(){
+        clockLabel.setText("Clock: " + tomasulo.getClock());
+        insTable.updateUI();
+        rs.updateUI();
+        lb.updateUI();
+        for(JTable temp : register){
+            temp.updateUI();
         }
     }
 }
