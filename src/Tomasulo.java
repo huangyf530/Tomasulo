@@ -1,4 +1,3 @@
-import javax.swing.event.DocumentEvent;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Queue;
@@ -9,8 +8,8 @@ public class Tomasulo {
     static int LDCC = 3;
     static int JUMPCC = 1;
     static int ADDCC = 3;
-    static int MULCC = 4;
-    static int DIVCC = 4;
+    static int MULCC = 12;
+    static int DIVCC = 40;
     static int DIVZEROCC = 1;
     // define the fu number
     private static int ADD = 3;
@@ -103,7 +102,6 @@ public class Tomasulo {
             loadqueue.offer(current);
         }
         else {
-            System.out.println(device);
             loadDevices.get(device).occupy(current);
             loadDevices.get(device).update(this);
         }
@@ -202,16 +200,18 @@ public class Tomasulo {
         return k;
     }
 
-    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata, Vector<Vector<Vector<String>>> regdata, Vector<Vector<String>> rsdata, Vector<Vector<String>> lbdata){
+    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata, Vector<Vector<Vector<String>>> regdata,
+                         Vector<Vector<String>> rsdata, Vector<Vector<String>> lbdata, Status status){
         /*
          * return true if the instruction issue, else return false
          */
         clock++;
+        status.init();
         System.out.printf("Clock : %d\n", clock);
         // (1) write through
         for(ReservationStation rs : to_update){
             System.out.print(rs.name + " ");
-            rs.WriteResult(clock, statusdata);
+            rs.WriteResult(clock, statusdata, status.currentWrite);
             rs.wakeup(this);
         }
         System.out.println();
@@ -228,7 +228,7 @@ public class Tomasulo {
             multDevices.get(i).update(this);
         }
         for(ReservationStation rs : to_update){
-            rs.ExecComp(clock, statusdata);
+            rs.ExecComp(clock, statusdata, status.currentExec);
         }
 
         // handle new instruction
@@ -240,7 +240,6 @@ public class Tomasulo {
         }
         String instruction = instructions.get(pc);
         System.out.println("Issue instruction: " + instruction);
-        System.out.println(instruction);
         String[] insts = instruction.split(",");
         int write_to;
         int res1;
@@ -253,7 +252,6 @@ public class Tomasulo {
             write_to = 0;
         }
         ReservationStation current;
-        boolean succeed = false;
         switch (insts[0]){
             case "LD":
                 int num = (int)Long.parseLong(insts[2].substring(2), 16);
@@ -285,7 +283,6 @@ public class Tomasulo {
                 res2 = Integer.parseInt(insts[2].substring(1));
                 current = HandleJump(res1, res2, write_to);
                 if(current == null){
-                    System.out.println("not succeed!");
                     blockByJump = false;
                 }
                 break;
@@ -299,7 +296,8 @@ public class Tomasulo {
         printLoadBuffers(lbdata);
         if(current != null){
             current.changeInstruction(instruction, pc);
-            current.Issue(clock, statusdata);
+            current.Issue(clock, statusdata, status);
+            System.out.println(status.currentIssue);
         }
         if(current != null && !blockByJump){
             pc++;
@@ -572,30 +570,12 @@ class LoadDevice extends Device{
     }
 }
 
-class LoadBuffer{
-    private boolean busy;
-    int address;
-    LoadBuffer(){
-        busy = false;
-        address = 0;
-    }
-    public void setAddress(int add){
-        busy = true;
-        address = add;
-    }
-
-    boolean isBusy(){
-        return busy;
-    }
-}
-
 class ReservationStation{
     String name;
     int type;
     int num;
     int count_down;    // timer
     boolean busy;
-    int address;
     int vj;
     int vk;
     int write_to;
@@ -609,7 +589,6 @@ class ReservationStation{
         this.num = num;
         this.name = name + num;
         busy = false;
-        address = 0;
         just_do = 0;
         sourcej = null;
         sourcek = null;
@@ -625,35 +604,29 @@ class ReservationStation{
         instructionStatus.write = 0;
     }
 
-    void Issue(int clock, Vector<Vector<String>> statudata){
+    void Issue(int clock, Vector<Vector<String>> statudata, Status status){
         instructionStatus.Issue(clock);
+        status.currentIssue = instructionStatus.instruction;          // record issue instruction
         String temp = statudata.get(instructionStatus.kth).get(1);
-        if(!temp.equals("")){
-            statudata.get(instructionStatus.kth).setElementAt(temp + ", " + clock, 1);
-        }
-        else{
+        if(temp.equals("")){
             statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 1);
         }
     }
 
-    void ExecComp(int clock, Vector<Vector<String>> statudata){
+    void ExecComp(int clock, Vector<Vector<String>> statudata, Vector<String> exec){
         instructionStatus.Exec(clock);
+        exec.add(instructionStatus.instruction);   // add current instruction to exec comp
         String temp = statudata.get(instructionStatus.kth).get(2);
-        if(!temp.equals("")){
-            statudata.get(instructionStatus.kth).setElementAt(temp + ", " + clock, 2);
-        }
-        else{
+        if(temp.equals("")){
             statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 2);
         }
     }
 
-    void WriteResult(int clock, Vector<Vector<String>> statudata){
+    void WriteResult(int clock, Vector<Vector<String>> statudata, Vector<String> write){
+        write.add(instructionStatus.instruction);
         instructionStatus.Write(clock);
         String temp = statudata.get(instructionStatus.kth).get(3);
-        if(!temp.equals("")){
-            statudata.get(instructionStatus.kth).setElementAt(temp + ", " + clock, 3);
-        }
-        else{
+        if(temp.equals("")){
             statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 3);
         }
     }
@@ -679,7 +652,6 @@ class ReservationStation{
 
     void release(){
         busy = false;
-        address = 0;
         just_do = 0;
         sourcek = null;
         sourcej = null;

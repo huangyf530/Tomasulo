@@ -1,3 +1,6 @@
 .idea/
 out/
 Tomasulo.iml
+*.pages
+.DS_STORE
+*.pdf

@@ -1,5 +1,4 @@
 import javax.swing.*;
-import javax.swing.table.JTableHeader;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -17,7 +16,7 @@ public class MainWindow extends JFrame {
     private JButton next;
     private JButton initial;
     private JLabel clockLabel;
-    private JTextArea clockText;
+    private JTextField clockText;
     private JButton loadInst;
     private Vector<String> instructions;
     private JFileChooser fileChooser;
@@ -38,23 +37,21 @@ public class MainWindow extends JFrame {
     private Vector<Vector<String>> regnames;
     private Vector<Vector<Vector<String>>> regdata;
     private Vector<JTable> register;
+
+    private Status status;
+    private JTextField issueText;
+    private JTextArea execField;
+    private JTextArea writeField;
     MainWindow(String windowName, Tomasulo tom){
         super(windowName);
         this.tomasulo = tom;
         instructions = new Vector<>();
+        status = new Status();
         contentPanel = (JPanel)this.getContentPane();
         JPanel buttonPanel = initButtonPanel();
         contentPanel.add(buttonPanel, BorderLayout.SOUTH);
         JPanel statusPanel = initStatusPanel();
         contentPanel.add(statusPanel, BorderLayout.CENTER);
-//        for(String instruction : instructions){
-//            Vector<String> temp = new Vector<>();
-//            temp.add(instruction);
-//            for(int i = 1; i < inscnames.size(); i++){
-//                temp.add("");
-//            }
-//            insdata.add(temp);
-//        }
 
         contentPanel.setOpaque(true);
 
@@ -75,9 +72,9 @@ public class MainWindow extends JFrame {
         buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.LINE_AXIS));
         JLabel endClock = new JLabel("End Clock:");
         buttonPanel.add(endClock);
-        clockText = new JTextArea("0");
-        clockText.setPreferredSize(new Dimension(150, 15));
-        clockText.setMaximumSize(new Dimension(150, 15));
+        clockText = new JTextField("0");
+        clockText.setPreferredSize(new Dimension(150, 20));
+        clockText.setMaximumSize(new Dimension(150, 20));
         clockText.setMinimumSize(new Dimension(100, 15));
         buttonPanel.add(clockText);
         start = new JButton("START");
@@ -106,7 +103,6 @@ public class MainWindow extends JFrame {
         inscnames.add("Write Through");
         insTable = new JTable(insdata, inscnames);
         JScrollPane scrollPane = new JScrollPane(insTable);
-        insTable.setBackground(Color.YELLOW);
         scrollPane.setPreferredSize(new Dimension(700, 300));
 
         JPanel topPanel = new JPanel();
@@ -193,6 +189,23 @@ public class MainWindow extends JFrame {
         clockLabel = new JLabel("Clock: 0");
         clockPanel.setLayout(new BoxLayout(clockPanel, BoxLayout.PAGE_AXIS));
         clockPanel.add(clockLabel);
+        JLabel issue = new JLabel("Issue instruction: ");
+        issueText = new JTextField();
+        issueText.setPreferredSize(new Dimension(300, 30));
+        issueText.setMaximumSize(new Dimension(600, 30));
+        issueText.setEnabled(false);
+        JLabel exec = new JLabel("Exec comp: ");
+        execField = new JTextArea();
+        execField.setEnabled(false);
+        JLabel write = new JLabel("Write Back: ");
+        writeField = new JTextArea();
+        writeField.setEnabled(false);
+        clockPanel.add(issue);
+        clockPanel.add(issueText);
+        clockPanel.add(exec);
+        clockPanel.add(execField);
+        clockPanel.add(write);
+        clockPanel.add(writeField);
         clockPanel.setPreferredSize(new Dimension(300, 300));
         return clockPanel;
     }
@@ -202,7 +215,7 @@ public class MainWindow extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if(e.getSource() == next){
-                    tomasulo.updateStatus(instructions,insdata, regdata, rsdata, lbdata);
+                    tomasulo.updateStatus(instructions,insdata, regdata, rsdata, lbdata, status);
                     updateTable();
                 }
             }
@@ -213,7 +226,10 @@ public class MainWindow extends JFrame {
             public void actionPerformed(ActionEvent e) {
                 if(e.getSource() == start){
                     int endClock = Integer.parseInt(clockText.getText());
+                    long startTime = System.currentTimeMillis();
                     startTomasulo(endClock);
+                    long endTime   = System.currentTimeMillis();
+                    System.out.println("Total time = " + (endTime - startTime));
                     updateTable();
                 }
             }
@@ -248,7 +264,7 @@ public class MainWindow extends JFrame {
     private void startTomasulo(int endClock){
         int clock = 1;
         while(!tomasulo.isEnd() || clock == 1){
-            tomasulo.updateStatus(instructions, insdata, regdata, rsdata, lbdata);
+            tomasulo.updateStatus(instructions, insdata, regdata, rsdata, lbdata, status);
             if(clock == endClock){
                 break;
             }
@@ -258,6 +274,10 @@ public class MainWindow extends JFrame {
 
     private void initial(){
         tomasulo.initClock();
+        issueText.setText("");
+        execField.setText("");
+        writeField.setText("");
+        status.init();
         for(Vector<String> temp : insdata){
             for(int i = 1; i < inscnames.size(); i++){
                 temp.setElementAt("", i);
@@ -290,6 +310,9 @@ public class MainWindow extends JFrame {
             // 一次读入一行，直到读入null为文件结束
             while ((tempString = reader.readLine()) != null) {
                 // 显示行号
+                if(tempString.equals("")){
+                    continue;
+                }
                 instructions.add(tempString);
                 line++;
             }
@@ -315,11 +338,39 @@ public class MainWindow extends JFrame {
 
     private void updateTable(){
         clockLabel.setText("Clock: " + tomasulo.getClock());
+        issueText.setText(status.currentIssue);
+        StringBuilder builder = new StringBuilder();
+        for(String temp : status.currentExec){
+            builder.append(temp + "\n");
+        }
+        execField.setText(builder.toString());
+        builder.delete(0, builder.length());
+        for(String temp : status.currentWrite){
+            builder.append(temp + "\n");
+        }
+        writeField.setText(builder.toString());
         insTable.updateUI();
         rs.updateUI();
         lb.updateUI();
         for(JTable temp : register){
             temp.updateUI();
         }
+    }
+}
+
+class Status{
+    String currentIssue;
+    Vector<String> currentExec;
+    Vector<String> currentWrite;
+    Status(){
+        currentIssue = null;
+        currentExec = new Vector<>();
+        currentWrite = new Vector<>();
+    }
+
+    void init(){
+        currentWrite.clear();
+        currentExec.clear();
+        currentIssue = null;
     }
 }
