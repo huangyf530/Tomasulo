@@ -200,21 +200,17 @@ public class Tomasulo {
         return k;
     }
 
-    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata, Vector<Vector<Vector<String>>> regdata,
-                         Vector<Vector<String>> rsdata, Vector<Vector<String>> lbdata, Status status){
+    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata,  Status status){
         /*
          * return true if the instruction issue, else return false
          */
         clock++;
         status.init();
-        System.out.printf("Clock : %d\n", clock);
         // (1) write through
         for(ReservationStation rs : to_update){
-            System.out.print(rs.name + " ");
             rs.WriteResult(clock, statusdata, status.currentWrite);
             rs.wakeup(this);
         }
-        System.out.println();
         to_update.clear();
 
         // (2) update device status
@@ -233,13 +229,10 @@ public class Tomasulo {
 
         // handle new instruction
         if(blockByJump || pc >= instructions.size()){
-            printRegiters(regdata);
-            printRS(rsdata);
-            printLoadBuffers(lbdata);
             return false;
         }
         String instruction = instructions.get(pc);
-        System.out.println("Issue instruction: " + instruction);
+        // System.out.println("Issue instruction: " + instruction);
         String[] insts = instruction.split(",");
         int write_to;
         int res1;
@@ -291,13 +284,10 @@ public class Tomasulo {
                 System.out.println(insts[0] + " is not a valid instruction");
                 break;
         }
-        printRegiters(regdata);
-        printRS(rsdata);
-        printLoadBuffers(lbdata);
         if(current != null){
             current.changeInstruction(instruction, pc);
             current.Issue(clock, statusdata, status);
-            System.out.println(status.currentIssue);
+//            System.out.println(status.currentIssue);
         }
         if(current != null && !blockByJump){
             pc++;
@@ -305,55 +295,55 @@ public class Tomasulo {
         return (current == null);
     }
 
-    private void printLoadBuffers(Vector<Vector<String>> lbdata){
-        System.out.println("Time\tName\tBusy\tContent");
+    void printLoadBuffers(Vector<Vector<String>> lbdata){
+        // System.out.println("Time\tName\tBusy\tContent");
         for(int i = 0; i < loadBuffers.size(); i++){
             ReservationStation rs = loadBuffers.get(i);
             if(rs.just_do == 2){
-                System.out.print(rs.count_down);
+                // System.out.print(rs.count_down);
                 lbdata.get(i).setElementAt(Integer.toString(rs.count_down), 0);
             }
             else{
                 lbdata.get(i).setElementAt("", 0);
             }
-            System.out.print("\t\t");
-            System.out.print(rs.name + "\t");
+            // System.out.print("\t\t");
+            // System.out.print(rs.name + "\t");
             lbdata.get(i).setElementAt(rs.name, 1);
             if(rs.isBusy()){
-                System.out.print("Yes\t\t" + rs.result);
+                // System.out.print("Yes\t\t" + rs.result);
                 lbdata.get(i).setElementAt("Yes", 2);
                 lbdata.get(i).setElementAt(Integer.toString(rs.result), 3);
             }
             else{
-                System.out.print("No\t\t");
+                // System.out.print("No\t\t");
                 lbdata.get(i).setElementAt("No", 2);
                 lbdata.get(i).setElementAt("", 3);
             }
-            System.out.print("\n");
+            // System.out.print("\n");
         }
     }
 
-    private void printRegiters(Vector<Vector<Vector<String>>> regdata){
-        for(int i = 0; i < registers.size(); i++){
-            System.out.print("F" + i + "\t\t");
-        }
-        System.out.print("\n");
+    void printRegiters(Vector<Vector<Vector<String>>> regdata){
+//        for(int i = 0; i < registers.size(); i++){
+//            System.out.print("F" + i + "\t\t");
+//        }
+//        System.out.print("\n");
         for(int i = 0; i < registers.size(); i++){
             Vector<Vector<String>> current = regdata.get(i / MainWindow.ONELINEREG);
             if(registers.get(i).ok){
-                System.out.print(registers.get(i).content + "\t\t");
+//                System.out.print(registers.get(i).content + "\t\t");
                 current.get(0).setElementAt(Integer.toString(registers.get(i).content), i % MainWindow.ONELINEREG);
             }
             else{
-                System.out.print(registers.get(i).rs.name + "\t");
+//                System.out.print(registers.get(i).rs.name + "\t");
                 current.get(0).setElementAt(registers.get(i).rs.name, i % MainWindow.ONELINEREG);
             }
         }
-        System.out.print("\n");
+//        System.out.print("\n");
     }
 
-    private void printRS(Vector<Vector<String>> rsdata){
-        System.out.println("Time\tName\tBusy\tOp\t\tVj\t\tVk\t\tQj\t\tQk");
+    void printRS(Vector<Vector<String>> rsdata){
+//        System.out.println("Time\tName\tBusy\tOp\t\tVj\t\tVk\t\tQj\t\tQk");
         int cnt = 0;
         printTheRS(addStations, rsdata, cnt);
         cnt += ADDRS;
@@ -365,23 +355,23 @@ public class Tomasulo {
             ReservationStation rs = current.get(i);
             int index = 0;
             if(rs.just_do == 2){
-                System.out.print(rs.count_down);
+//                System.out.print(rs.count_down);
                 rsdata.get(i + cnt).setElementAt(Integer.toString(rs.count_down), index);
             }
             else{
                 rsdata.get(i + cnt).setElementAt("", index);
             }
-            System.out.print("\t\t");
-            System.out.print(rs.name + "\t");
+//            System.out.print("\t\t");
+//            System.out.print(rs.name + "\t");
             index++;
             rsdata.get(i + cnt).setElementAt(rs.name, index);
             index++;
             if(rs.isBusy()){
-                System.out.print("Yes\t\t");
+//                System.out.print("Yes\t\t");
                 rsdata.get(i + cnt).setElementAt("Yes", index);
             }
             else{
-                System.out.println("No\t\t");
+//                System.out.println("No\t\t");
                 rsdata.get(i + cnt).setElementAt("No", index);
                 for(index = 3; index < rsdata.get(i).size(); index++){
                     rsdata.get(i + cnt).setElementAt("", index);
@@ -390,45 +380,45 @@ public class Tomasulo {
             }
             index++;
             String op = rs.Op();
-            System.out.print(op + "\t");
+//            System.out.print(op + "\t");
             rsdata.get(i + cnt).setElementAt(op, index);
             index++;
             if(rs.sourcej == null){
-                System.out.printf("% 6d  ", rs.vj);
+//                System.out.printf("% 6d  ", rs.vj);
                 rsdata.get(i + cnt).setElementAt(Integer.toString(rs.vj), index);
             }
             else{
-                System.out.print("\t\t");
+//                System.out.print("\t\t");
                 rsdata.get(i + cnt).setElementAt("", index);
             }
             index++;
             if(rs.sourcek == null){
-                System.out.printf("% 6d  ", rs.vk);
+//                System.out.printf("% 6d  ", rs.vk);
                 rsdata.get(i + cnt).setElementAt(Integer.toString(rs.vk), index);
             }
             else{
-                System.out.print("\t\t");
+//                System.out.print("\t\t");
                 rsdata.get(i + cnt).setElementAt("", index);
             }
             index++;
             if(rs.sourcej != null){
-                System.out.print(rs.sourcej.name+"\t");
+//                System.out.print(rs.sourcej.name+"\t");
                 rsdata.get(i + cnt).setElementAt(rs.sourcej.name, index);
             }
             else {
-                System.out.print("\t\t");
+//                System.out.print("\t\t");
                 rsdata.get(i + cnt).setElementAt("", index);
             }
             index++;
             if(rs.sourcek != null){
-                System.out.print(rs.sourcek.name+"\t");
+//                System.out.print(rs.sourcek.name+"\t");
                 rsdata.get(i + cnt).setElementAt(rs.sourcek.name, index);
             }
             else {
-                System.out.print("\t\t");
+//                System.out.print("\t\t");
                 rsdata.get(i + cnt).setElementAt("", index);
             }
-            System.out.print("\n");
+//            System.out.print("\n");
         }
     }
 

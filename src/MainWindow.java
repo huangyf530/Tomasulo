@@ -215,7 +215,10 @@ public class MainWindow extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if(e.getSource() == next){
-                    tomasulo.updateStatus(instructions,insdata, regdata, rsdata, lbdata, status);
+                    tomasulo.updateStatus(instructions,insdata, status);
+                    tomasulo.printRegiters(regdata);
+                    tomasulo.printRS(rsdata);
+                    tomasulo.printLoadBuffers(lbdata);
                     updateTable();
                 }
             }
@@ -229,7 +232,7 @@ public class MainWindow extends JFrame {
                     long startTime = System.currentTimeMillis();
                     startTomasulo(endClock);
                     long endTime   = System.currentTimeMillis();
-                    System.out.println("Total time = " + (endTime - startTime));
+                    System.out.println("Total time = " + (double)(endTime - startTime) / 1000 + " s");
                     updateTable();
                 }
             }
@@ -264,12 +267,15 @@ public class MainWindow extends JFrame {
     private void startTomasulo(int endClock){
         int clock = 1;
         while(!tomasulo.isEnd() || clock == 1){
-            tomasulo.updateStatus(instructions, insdata, regdata, rsdata, lbdata, status);
+            tomasulo.updateStatus(instructions, insdata, status);
             if(clock == endClock){
                 break;
             }
             clock++;
         }
+        tomasulo.printRegiters(regdata);
+        tomasulo.printRS(rsdata);
+        tomasulo.printLoadBuffers(lbdata);
     }
 
     private void initial(){
