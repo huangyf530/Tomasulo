@@ -200,7 +200,7 @@ public class Tomasulo {
         return k;
     }
 
-    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata,  Status status){
+    boolean updateStatus(Vector<String> instructions, Vector<Vector<String>>statusdata,  Status status, int[] count){
         /*
          * return true if the instruction issue, else return false
          */
@@ -285,7 +285,8 @@ public class Tomasulo {
                 break;
         }
         if(current != null){
-            current.changeInstruction(instruction, pc);
+            current.changeInstruction(instruction, pc, count[pc]);
+            count[pc] ++;
             current.Issue(clock, statusdata, status);
 //            System.out.println(status.currentIssue);
         }
@@ -586,19 +587,19 @@ class ReservationStation{
         instructionStatus = new InstructionStatus();
     }
 
-    void changeInstruction(String inst, int kth){
+    void changeInstruction(String inst, int kth, int count){
         instructionStatus.instruction = inst;
         instructionStatus.kth = kth;
         instructionStatus.issue = 0;
         instructionStatus.execcomp = 0;
         instructionStatus.write = 0;
+        instructionStatus.count = count;
     }
 
     void Issue(int clock, Vector<Vector<String>> statudata, Status status){
         instructionStatus.Issue(clock);
         status.currentIssue = instructionStatus.instruction;          // record issue instruction
-        String temp = statudata.get(instructionStatus.kth).get(1);
-        if(temp.equals("")){
+        if(instructionStatus.count == 1){
             statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 1);
         }
     }
@@ -606,8 +607,7 @@ class ReservationStation{
     void ExecComp(int clock, Vector<Vector<String>> statudata, Vector<String> exec){
         instructionStatus.Exec(clock);
         exec.add(instructionStatus.instruction);   // add current instruction to exec comp
-        String temp = statudata.get(instructionStatus.kth).get(2);
-        if(temp.equals("")){
+        if(instructionStatus.count == 1){
             statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 2);
         }
     }
@@ -615,8 +615,7 @@ class ReservationStation{
     void WriteResult(int clock, Vector<Vector<String>> statudata, Vector<String> write){
         write.add(instructionStatus.instruction);
         instructionStatus.Write(clock);
-        String temp = statudata.get(instructionStatus.kth).get(3);
-        if(temp.equals("")){
+        if(instructionStatus.count == 1){
             statudata.get(instructionStatus.kth).setElementAt(Integer.toString(clock), 3);
         }
     }
@@ -750,12 +749,14 @@ class InstructionStatus{
     int execcomp;
     int write;
     int kth;
+    int count;
     InstructionStatus(){
         instruction = null;
         issue = 0;
         execcomp = 0;
         write = 0;
         kth = 0;
+        count = 0;
     }
 
     int Issue(int t){

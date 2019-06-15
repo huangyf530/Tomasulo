@@ -42,6 +42,9 @@ public class MainWindow extends JFrame {
     private JTextField issueText;
     private JTextArea execField;
     private JTextArea writeField;
+
+    private int[] count;
+    private int line;
     MainWindow(String windowName, Tomasulo tom){
         super(windowName);
         this.tomasulo = tom;
@@ -215,7 +218,7 @@ public class MainWindow extends JFrame {
             @Override
             public void actionPerformed(ActionEvent e) {
                 if(e.getSource() == next){
-                    tomasulo.updateStatus(instructions,insdata, status);
+                    tomasulo.updateStatus(instructions,insdata, status, count);
                     tomasulo.printRegiters(regdata);
                     tomasulo.printRS(rsdata);
                     tomasulo.printLoadBuffers(lbdata);
@@ -267,7 +270,7 @@ public class MainWindow extends JFrame {
     private void startTomasulo(int endClock){
         int clock = 1;
         while(!tomasulo.isEnd() || clock == 1){
-            tomasulo.updateStatus(instructions, insdata, status);
+            tomasulo.updateStatus(instructions, insdata, status, count);
             if(clock == endClock){
                 break;
             }
@@ -284,6 +287,9 @@ public class MainWindow extends JFrame {
         execField.setText("");
         writeField.setText("");
         status.init();
+        for(int i = 0; i < line; i++){
+            count[i] = 1;
+        }
         for(Vector<String> temp : insdata){
             for(int i = 1; i < inscnames.size(); i++){
                 temp.setElementAt("", i);
@@ -312,7 +318,7 @@ public class MainWindow extends JFrame {
         try{
             reader = new BufferedReader(new FileReader(f));
             String tempString = null;
-            int line = 1;
+            line = 0;
             // 一次读入一行，直到读入null为文件结束
             while ((tempString = reader.readLine()) != null) {
                 // 显示行号
@@ -321,6 +327,10 @@ public class MainWindow extends JFrame {
                 }
                 instructions.add(tempString);
                 line++;
+            }
+            count = new int[line];
+            for(int i = 0; i < line; i++){
+                count[i] = 1;
             }
             reader.close();
         }
